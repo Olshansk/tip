@@ -38,10 +38,10 @@ date_sorted_daily_data = daily_data.sort_values(by="date")
 base_sorted_daily_data = sort_df_by_metric(daily_data, BASE_METRIC)
 test_sorted_daily_data = sort_df_by_metric(daily_data, TEST_METRIC)
 
-for rebalance_days in [365]:
-    for portfolio_size in [10]:
-        # for rebalance_days in [30, 90, 180, 730, 1825]:
-        #     for portfolio_size in [5, 10, 15, 30, 60]:
+# for rebalance_days in [365]:
+#     for portfolio_size in [10]:
+for rebalance_days in [30, 90, 180, 730, 1825]:
+    for portfolio_size in [5, 10, 15, 30, 60]:
         print(f"rebalance_days:{rebalance_days}", f"portfolio_size:{portfolio_size}")
         df_res, df_debug = compute_dfs(
             BASE_METRIC,
