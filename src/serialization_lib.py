@@ -84,3 +84,12 @@ def write_df_res_to_feather(df: pd.DataFrame, filename: str):
 def read_df_res_from_feather(filename: str):
     df = pd.read_feather(filename)
     return df.set_index("date")
+
+
+## General DF helpers
+
+def write_df_to_feather(df: pd.DataFrame, filename: str):
+    df.to_feather(filename)
+
+def read_df_from_feather(filename: str):
+    return pd.read_feather(filename)

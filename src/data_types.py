@@ -41,4 +41,4 @@ class EvaluationMetric(Enum):
         elif self.value == EvaluationMetric.DIV_YIELD.value:
             return "% Div Yield"
         else:
-            raise Exception(f"Unsupported evaluation metric {metric}")
+            raise Exception(f"Unsupported evaluation metric {self.value}")

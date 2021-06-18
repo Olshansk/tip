@@ -122,7 +122,6 @@ def compute_dfs(
         # Get data for the previous date to compute `base_portfolio_per_ticker_change` for debugging below
         prev_daily_data_df = filter_df_by_date(date_sorted_daily_data, prev_date)
         prev_base_sorted_df = filter_df_by_date(base_sorted_daily_data, prev_date)
-        prev_test_sorted_df = filter_df_by_date(test_sorted_daily_data, prev_date)
 
         # DEBUG ONLY
         debug[date] = {
@@ -132,7 +131,7 @@ def compute_dfs(
             "base_portfolio_curr_price": base_price,
             "base_portfolio_tickers_closed": base_tickers_closed,
             "base_portfolio_per_ticker_data": get_stock_price_per_stock(
-                base_sorted_df,
+                prev_daily_data_df,
                 prev_base_sorted_df,
                 date_sorted_daily_data,
                 base_portfolio,
