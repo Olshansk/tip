@@ -18,5 +18,5 @@ help:
 ## Generate HTML of InvestigateData notebook
 generate_html:
 	jupyter nbconvert BackTest_InvestigateData.ipynb  --no-input --to html
-	mv BackTest_InvestigateData.ipynb index.html
+	mv BackTest_InvestigateData.ipynb public/index.html
 # pandoc BackTest_InvestigateData.html -t latex -o DataInvestigation.pdf
