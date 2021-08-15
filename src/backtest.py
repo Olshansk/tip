@@ -1,13 +1,64 @@
 import datetime
+import os
 from datetime import timedelta
 
 import pandas as pd
 
-from src.data_generation_helpers import *
+from src.backtest_helpers import *
 from src.data_types import *
+from src.serialization_lib import get_feather_filename, write_df_to_feather
+
+DATA_PROCESSED_BASE_PATH = "/Volumes/SDCard/TipBackTest/processed_data"
 
 
-def compute_dfs(
+@dataclasses.dataclass
+class BackTestResult:
+    df: pd.DataFrame
+    df_debug: pd.DataFrame
+    base_metric: EvaluationMetric
+    test_metric: EvaluationMetric
+    rebalance_days: int
+    portfolio_size: int
+    stocks_universe: StockUniverse
+
+
+def _save_to_disk(
+    base_metric: EvaluationMetric,
+    test_metric: EvaluationMetric,
+    rebalance_days: int,
+    portfolio_size: int,
+    stocks_universe: StockUniverse,
+    df_res: pd.DataFrame,
+    df_debug: pd.DataFrame,
+    base_path: str,
+    env: str,
+) -> None:
+    filename = get_feather_filename(
+        "df_debug",
+        base_metric,
+        test_metric,
+        rebalance_days,
+        portfolio_size,
+        stocks_universe,
+        env,
+    )
+    filename = os.path.join(base_path, filename)
+    write_df_to_feather(df_debug, filename)
+
+    filename = get_feather_filename(
+        "df_res",
+        base_metric,
+        test_metric,
+        rebalance_days,
+        portfolio_size,
+        stocks_universe,
+        env,
+    )
+    filename = os.path.join(base_path, filename)
+    write_df_to_feather(df_res, filename)
+
+
+def compute_backtest_dfs(
     base_metric: EvaluationMetric,
     test_metric: EvaluationMetric,
     stocks_universe: StockUniverse,
@@ -16,10 +67,24 @@ def compute_dfs(
     portfolio_size: int,
     initial_portfolio_value: int,
     daily_data: pd.DataFrame,
-    date_sorted_daily_data: pd.DataFrame,
-    base_sorted_daily_data: pd.DataFrame,
-    test_sorted_daily_data: pd.DataFrame,
+    daily_data_base_sorted: pd.DataFrame,
+    daily_data_test_sorted: pd.DataFrame,
+    base_path: str = DATA_PROCESSED_BASE_PATH,
+    save_to_disk: bool = True,
+    env: str = "prod",
 ):
+    assert daily_data["date"].is_monotonic_increasing
+    assert (
+        daily_data_base_sorted[base_metric.sorted_column()]
+        .dropna()
+        .is_monotonic_increasing
+    )
+    assert (
+        daily_data_test_sorted[test_metric.sorted_column()]
+        .dropna()
+        .is_monotonic_increasing
+    )
+
     start_date = datetime.datetime.strptime(min(daily_data["date"]), "%Y-%m-%d")
     end_date = datetime.datetime.strptime(max(daily_data["date"]), "%Y-%m-%d")
 
@@ -33,9 +98,9 @@ def compute_dfs(
     start_date = rebalance_dates[0]
 
     # Get data for start date
-    daily_data_df = filter_df_by_date(date_sorted_daily_data, start_date)
-    base_sorted_df = filter_df_by_date(base_sorted_daily_data, start_date)
-    test_sorted_df = filter_df_by_date(test_sorted_daily_data, start_date)
+    daily_data_df = filter_df_by_date(daily_data, start_date)
+    base_sorted_df = filter_df_by_date(daily_data_base_sorted, start_date)
+    test_sorted_df = filter_df_by_date(daily_data_test_sorted, start_date)
 
     # Filter based on the universe of stocks we are interested in.
     base_sorted_df_in_universe = filter_stocks_by_universe(
@@ -63,10 +128,10 @@ def compute_dfs(
 
     # SANITY CHECK: compute these values rather than assigning them for consistency.
     base_price, base_tickers_closed = get_stock_basket_price(
-        base_sorted_df, date_sorted_daily_data, base_share_allocation
+        base_sorted_df, daily_data, base_share_allocation
     )
     test_price, test_tickers_closed = get_stock_basket_price(
-        test_sorted_df, date_sorted_daily_data, test_share_allocation
+        test_sorted_df, daily_data, test_share_allocation
     )
 
     # SANITY CHECK
@@ -89,19 +154,17 @@ def compute_dfs(
 
     # Skip the first date (start_date) because it is handeled above
     for date in rebalance_dates[1:]:
-        print(date.strftime("%Y-%m-%d"))
-
         # Filter DFs for optimization purposes
-        daily_data_df = filter_df_by_date(date_sorted_daily_data, date)
-        base_sorted_df = filter_df_by_date(base_sorted_daily_data, date)
-        test_sorted_df = filter_df_by_date(test_sorted_daily_data, date)
+        daily_data_df = filter_df_by_date(daily_data, date)
+        base_sorted_df = filter_df_by_date(daily_data_base_sorted, date)
+        test_sorted_df = filter_df_by_date(daily_data_test_sorted, date)
 
         # Compute value of previous portfolio at today's date
         base_price, base_tickers_closed = get_stock_basket_price(
-            base_sorted_df, date_sorted_daily_data, base_share_allocation
+            base_sorted_df, daily_data, base_share_allocation
         )
         test_price, test_tickers_closed = get_stock_basket_price(
-            test_sorted_df, date_sorted_daily_data, test_share_allocation
+            test_sorted_df, daily_data, test_share_allocation
         )
 
         # Compute teh change in the portfolio value
@@ -120,8 +183,7 @@ def compute_dfs(
         }
 
         # Get data for the previous date to compute `base_portfolio_per_ticker_change` for debugging below
-        prev_daily_data_df = filter_df_by_date(date_sorted_daily_data, prev_date)
-        prev_base_sorted_df = filter_df_by_date(base_sorted_daily_data, prev_date)
+        prev_base_sorted_df = filter_df_by_date(daily_data_base_sorted, prev_date)
 
         # DEBUG ONLY
         debug[date] = {
@@ -130,10 +192,10 @@ def compute_dfs(
             "base_portfolio_prev_price": prev_base_price,
             "base_portfolio_curr_price": base_price,
             "base_portfolio_tickers_closed": base_tickers_closed,
-            "base_portfolio_per_ticker_data": get_stock_price_per_stock(
-                prev_daily_data_df,
+            "base_portfolio_per_ticker_data": get_per_stock_change(
+                daily_data_df,
                 prev_base_sorted_df,
-                date_sorted_daily_data,
+                daily_data,
                 base_portfolio,
             ),
         }
@@ -163,10 +225,10 @@ def compute_dfs(
 
         # Get new portfolio price
         base_price, base_tickers_closed = get_stock_basket_price(
-            base_sorted_df, date_sorted_daily_data, base_share_allocation
+            base_sorted_df, daily_data, base_share_allocation
         )
         test_price, test_tickers_closed = get_stock_basket_price(
-            test_sorted_df, date_sorted_daily_data, test_share_allocation
+            test_sorted_df, daily_data, test_share_allocation
         )
 
         # SANITY CHECK: since we just got these stocks, none of them should be closed...
@@ -181,8 +243,8 @@ def compute_dfs(
         # DEBUG ONLY: Adding this to the debug DF for easier debugging...
         debug[date].update(
             {
-                "new_base_portfolio_per_ticker_data": get_stock_price_per_stock(
-                    base_sorted_df, None, date_sorted_daily_data, base_portfolio
+                "new_base_portfolio_per_ticker_data": get_per_stock_change(
+                    base_sorted_df, None, daily_data, base_portfolio
                 ),
             }
         )
@@ -190,24 +252,25 @@ def compute_dfs(
     df_res = pd.DataFrame.from_dict(res, orient="index")
     df_debug = pd.DataFrame.from_dict(debug, orient="index")
 
-    filename = df_feather_filename(
-        "df_debug",
+    if save_to_disk:
+        _save_to_disk(
+            base_metric,
+            test_metric,
+            rebalance_days,
+            portfolio_size,
+            stocks_universe,
+            df_res,
+            df_debug,
+            base_path,
+            env,
+        )
+
+    return BackTestResult(
+        df_res,
+        df_debug,
         base_metric,
         test_metric,
         rebalance_days,
         portfolio_size,
         stocks_universe,
     )
-    write_df_debug_to_feather(df_debug, filename)
-
-    filename = df_feather_filename(
-        "df_res",
-        base_metric,
-        test_metric,
-        rebalance_days,
-        portfolio_size,
-        stocks_universe,
-    )
-    write_df_res_to_feather(df_res, filename)
-
-    return (df_res, df_debug)

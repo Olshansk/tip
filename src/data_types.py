@@ -14,6 +14,13 @@ class Stock:
     price: float
 
 
+@dataclasses.dataclass
+class StockRebalanceInstance:
+    ticker: str
+    prev_price: float
+    curr_price: float
+
+
 class StockUniverse(Enum):
     SMALL = auto()  # < $1B
     MID = auto()  # $1B - $10B
@@ -40,5 +47,17 @@ class EvaluationMetric(Enum):
             return "P/B"
         elif self.value == EvaluationMetric.DIV_YIELD.value:
             return "% Div Yield"
+        else:
+            raise Exception(f"Unsupported evaluation metric {self.value}")
+
+    def sorted_column(self):
+        if self.value == EvaluationMetric.EV_EBIT.value:
+            return "evebit"
+        elif self.value == EvaluationMetric.P_E.value:
+            return "pe"
+        elif self.value == EvaluationMetric.P_B.value:
+            return "pb"
+        elif self.value == EvaluationMetric.DIV_YIELD.value:
+            return "divyield"
         else:
             raise Exception(f"Unsupported evaluation metric {self.value}")

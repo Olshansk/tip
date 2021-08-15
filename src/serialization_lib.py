@@ -1,95 +1,85 @@
-from typing import List, Tuple
+from typing import List
 
+import numpy as np
 import pandas as pd
 
 from src.data_types import *
 
-# Helpers to convert (stock, prev_price, curr_price) into a serializable manner.
 
-
-def serialize_portfolio(inputs: List[Tuple[str, int, int]]):
-    return [f"{t[0]}:{t[1]}:{t[2]}" for t in inputs]
-
-
-def deserialize_portfolio(inputs: List[Tuple[str, int, int]]):
-    r = []
-    for t in inputs:
-        split = t.split(":")
-        r.append(
-            [
-                split[0],
-                float(split[1]) if split[1] != "NA" else "NA",
-                float(split[2]) if split[2] != "NA" else "NA",
-            ]
-        )
-    return r
-
-
-# Debug DF helpers
-
-
-def df_feather_filename(
+def get_feather_filename(
     prefix: str,
     base_metric: EvaluationMetric,
     test_metric: EvaluationMetric,
     rebalance_days: int,
     portfolio_size: int,
     stocks_universe: StockUniverse,
-):
+    env: str = "prod",
+) -> str:
     return (
         f"{prefix}:"
         f'{str(base_metric).replace("/", "_")}_VS'
         f'{str(test_metric).replace("/", "_")}:'
         f"rebalanced_every_{rebalance_days}:"
         f"portfolio_size_{portfolio_size}:"
-        f"{str(stocks_universe)}"
+        f"{str(stocks_universe)}:"
+        f"{env}"
         f".feather"
     )
 
 
-def write_df_debug_to_feather(df: pd.DataFrame, filename: str):
-    df_temp = df.copy()
-    df_temp["base_portfolio_tickers_closed"] = df_temp[
-        "base_portfolio_tickers_closed"
-    ].apply(list)
-    df_temp["base_portfolio_per_ticker_data"] = df_temp[
-        "base_portfolio_per_ticker_data"
-    ].map(serialize_portfolio)
-    df_temp["new_base_portfolio_per_ticker_data"] = df_temp[
-        "new_base_portfolio_per_ticker_data"
-    ].map(serialize_portfolio)
-    df_temp.reset_index().rename(columns={"index": "date"}).to_feather(filename)
+def serialize_portfolio(inputs: List[StockRebalanceInstance]) -> List[str]:
+    """
+    Helper so DataFrame column can be stored as a feather or HDF file.
+    """
+    return [f"{i.ticker}:{i.prev_price}:{i.curr_price}" for i in inputs]
 
 
-def read_df_debug_from_feather(filename: str):
-    df = pd.read_feather(filename)
-    df["base_portfolio_tickers_closed"] = df["base_portfolio_tickers_closed"].apply(set)
-    df["base_portfolio_per_ticker_data"] = df["base_portfolio_per_ticker_data"].map(
-        deserialize_portfolio
-    )
-    df["new_base_portfolio_per_ticker_data"] = df[
-        "new_base_portfolio_per_ticker_data"
-    ].map(deserialize_portfolio)
-    return df.set_index("date")
+def deserialize_portfolio(inputs: List[StockRebalanceInstance]) -> None:
+    """
+    Helper to deserialize portfolio from a previously saved feather or HDF file.
+    """
+    r = []
+    for t in inputs:
+        split = t.split(":")
+        r.append(
+            StockRebalanceInstance(
+                split[0],
+                float(split[1]) if split[1] != np.nan else np.nan,
+                float(split[2]) if split[2] != np.nan else np.nan,
+            )
+        )
+    return r
 
 
-# Result DF Helpers
+COLUMN_TO_FEATHER_SERIALIZATION_MAPPING = {
+    "base_portfolio_tickers_closed": list,
+    "base_portfolio_per_ticker_data": serialize_portfolio,
+    "new_base_portfolio_per_ticker_data": serialize_portfolio,
+}
 
 
-def write_df_res_to_feather(df: pd.DataFrame, filename: str):
-    df_temp = df.copy()
-    df_temp.reset_index().rename(columns={"index": "date"}).to_feather(filename)
-
-
-def read_df_res_from_feather(filename: str):
-    df = pd.read_feather(filename)
-    return df.set_index("date")
-
-
-## General DF helpers
-
-def write_df_to_feather(df: pd.DataFrame, filename: str):
+def write_df_to_feather(df_orig: pd.DataFrame, filename: str):
+    df = df_orig.copy()
+    for key, ser_func in COLUMN_TO_FEATHER_SERIALIZATION_MAPPING.items():
+        if key in df:
+            df[key] = df[key].map(ser_func)
+    df = df.reset_index()
+    if "date" not in df.columns and df.dtypes["index"] == "datetime64[ns]":
+        df.rename({"index": "date"}, inplace=True)
     df.to_feather(filename)
 
+
+COLUMN_TO_FEATHER_DESERIALIZATION_MAPPING = {
+    "base_portfolio_tickers_closed": set,
+    "base_portfolio_per_ticker_data": deserialize_portfolio,
+    "new_base_portfolio_per_ticker_data": deserialize_portfolio,
+}
+
+
 def read_df_from_feather(filename: str):
-    return pd.read_feather(filename)
+    df = pd.read_feather(filename)
+    for key, deser_func in COLUMN_TO_FEATHER_DESERIALIZATION_MAPPING.items():
+        if key in df:
+            df[key] = df[key].map(deser_func)
+    return df
+    # return df.set_index("date")

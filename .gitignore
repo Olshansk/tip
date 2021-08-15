@@ -1,4 +1,5 @@
 *.csv
+.DS_Store
 Backtesting - Stig & Daniel.pdf
 df_res:EV_EBIT_VSP_B:rebalanced_every_90:portfolio_size_30:StockUniverse.LARGE
 df_debug:EV_EBIT_VSP_B:rebalanced_every_90:portfolio_size_30:StockUniverse.LARGE
