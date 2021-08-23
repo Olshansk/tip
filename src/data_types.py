@@ -78,7 +78,7 @@ class EvaluationMetric(Enum):
         elif self.value == EvaluationMetric.P_E.value:
             return "P_E"
         elif self.value == EvaluationMetric.P_B.value:
-            return "P_V"
+            return "P_B"
         elif self.value == EvaluationMetric.DIV_YIELD.value:
             return "DIV_YIELD"
         else:
