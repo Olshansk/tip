@@ -10,11 +10,12 @@ def run():
     INITIAL_PORTFOLIO_VALUE = 10000
 
     PORTFOLIO_SIZE = [5, 10, 15, 30, 60]
-    # REBALANCE_DAYS = [30, 90, 180, 360, 730, 1825]
+    # REBALANCE_DAYS = [30, 90, 180, 365, 730, 1825]
+    REBALANCE_DAYS = [90, 180, 365, 730, 1825]
 
     #       amount_per_stock = investment_amount / len(tickers)
     # Caught exception while processing... division by zero rebalance_days:30 portfolio_size:5
-    REBALANCE_DAYS = [30]
+    # REBALANCE_DAYS = [30]
 
     # PORTFOLIO_SIZE = [10, 30]
     # REBALANCE_DAYS = [1000, 2000]
