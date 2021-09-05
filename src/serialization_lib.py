@@ -18,6 +18,7 @@ def get_feather_filename(
     return (
         f"{prefix}:"
         f'{str(base_metric).replace("/", "_")}_VS'
+        # f'{str(base_metric).replace("/", "_")}_VS_'  # TODO
         f'{str(test_metric).replace("/", "_")}:'
         f"rebalanced_every_{rebalance_days}:"
         f"portfolio_size_{portfolio_size}:"
